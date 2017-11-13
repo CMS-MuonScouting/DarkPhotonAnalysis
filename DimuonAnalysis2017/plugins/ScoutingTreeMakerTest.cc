@@ -250,7 +250,7 @@ void ScoutingTreeMakerTest::analyze(const edm::Event& iEvent, const edm::EventSe
     if (doL1) {
         l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
 
-	   for(int i=0; i<(int)l1Seeds_.size(); i++){
+	   for(int i=0; i<512; i++){
         string name ("empty");
         bool algoName_ = false;
         algoName_ = l1GtUtils_->getAlgNameFromBit(i,name);
