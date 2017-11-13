@@ -48,7 +48,8 @@ params.register(
 
 params.register(
     'GlobalTagData', 
-    '80X_dataRun2_2016SeptRepro_v7', 
+#    '80X_dataRun2_2016SeptRepro_v7', 
+     '92X_dataRun2_Prompt_v11',
     VarParsing.multiplicity.singleton,VarParsing.varType.string,
     'Process name for the HLT paths'
 )
@@ -76,7 +77,7 @@ params.parseArguments()
 # Message Logger settings
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.MessageLogger.destinations = ['cout', 'cerr']
-process.MessageLogger.cerr.FwkReport.reportEvery = 100
+process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 # Set the process options -- Display summary at the end, enable unscheduled execution
 process.options = cms.untracked.PSet( 
@@ -85,7 +86,7 @@ process.options = cms.untracked.PSet(
 )
 
 # How many events to process
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100000) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(10) )
 
 # Input EDM files
 process.source = cms.Source("PoolSource",
@@ -182,7 +183,7 @@ process.mmtree = cms.EDAnalyzer('ScoutingTreeMakerTest',
 
 # Analysis path
 if params.isMC : 
-    process.p = cms.Path(process.gentree + process.mmtree)
+    process.p = cms.Path( process.gentree + process.mmtree)
 else : 
-    process.p = cms.Path(                  process.mmtree)
+    process.p = cms.Path( process.gtStage2Digis + process.mmtree)
 

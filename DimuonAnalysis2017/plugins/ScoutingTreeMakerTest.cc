@@ -75,6 +75,7 @@ class ScoutingTreeMakerTest : public edm::one::EDAnalyzer<edm::one::SharedResour
         virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
         virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
 
+
         const edm::InputTag triggerResultsTag;
         const edm::EDGetTokenT<edm::TriggerResults>             triggerResultsToken;
         const edm::EDGetTokenT<std::vector<ScoutingVertex> >    verticesToken;
@@ -98,6 +99,7 @@ class ScoutingTreeMakerTest : public edm::one::EDAnalyzer<edm::one::SharedResour
 	
 	bool doL1;       
         triggerExpression::Data triggerCache_;
+
 	bool isMC;
         bool useLHEWeights;
         bool storeReducedInfo;		 
@@ -111,7 +113,8 @@ class ScoutingTreeMakerTest : public edm::one::EDAnalyzer<edm::one::SharedResour
         // Flags for the different types of triggers used in the analysis
         // For now we are interested in events passing either the single or double lepton triggers
         unsigned char                trig;
-       
+
+        edm::InputTag                algInputTag_;       
         edm::EDGetToken              algToken_;
         l1t::L1TGlobalUtil           *l1GtUtils_;
         std::vector<std::string>     l1Seeds_;
@@ -174,12 +177,12 @@ ScoutingTreeMakerTest::ScoutingTreeMakerTest(const edm::ParameterSet& iConfig):
 {
 	usesResource("TFileService");
 	if (doL1) {
-	        algToken_ = consumes<BXVector<GlobalAlgBlk>>(iConfig.getParameter<edm::InputTag>("AlgInputTag"));
-        	l1Seeds_ = iConfig.getParameter<std::vector<std::string> >("l1Seeds");
-		cout<<"after Seeds before l1GtUtils"<<endl;
-		//cout<<consumesCollector()<<endl;
-		l1GtUtils_ = new l1t::L1TGlobalUtil(iConfig,consumesCollector());
-		cout<<"after l1GtUtils"<<endl;
+        algInputTag_ = iConfig.getParameter<edm::InputTag>("AlgInputTag");
+        algToken_ = consumes<BXVector<GlobalAlgBlk>>(algInputTag_);
+    	l1Seeds_ = iConfig.getParameter<std::vector<std::string> >("l1Seeds");
+		cout <<"after Seeds before l1GtUtils" <<endl;;
+        l1GtUtils_ = new l1t::L1TGlobalUtil(iConfig,consumesCollector());
+		cout <<"after l1GtUtils" <<endl ;
     	}
     	else {
         	l1Seeds_ = std::vector<std::string>();
@@ -247,17 +250,21 @@ void ScoutingTreeMakerTest::analyze(const edm::Event& iEvent, const edm::EventSe
     if (doL1) {
         l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
 
-	for(int i=0; i<10; i++){
-	string name;
-	l1GtUtils_->getAlgNameFromBit(i,name);
-	cout<<name<<endl;
+	   for(int i=0; i<(int)l1Seeds_.size(); i++){
+        string name ("empty");
+        bool algoName_ = false;
+        algoName_ = l1GtUtils_->getAlgNameFromBit(i,name);
+        if(algoName_ != true) continue;
+        cout << "getAlgNameFromBit = " << algoName_  << endl;
+        cout << "L1 bit number = " << i << " ; L1 bit name = " << name << endl;
+
 	}
         for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
   	    bool l1htbit = 0;
 	    l1GtUtils_->getFinalDecisionByName(l1Seeds_[iseed], l1htbit);
             //l1Result_->push_back( l1htbit );
 	    if(l1htbit){
-	      cout<<l1Seeds_[iseed]<<"  "<<l1htbit<<endl;
+	      cout<< "L1Seed_[iseed] = " << l1Seeds_[iseed]<<"  "<<l1htbit<<endl;
 	       }
 	    //Fill histogram
 	    //if (l1htbit) {
@@ -396,6 +403,7 @@ void ScoutingTreeMakerTest::beginJob() {
     // Access the TFileService
     edm::Service<TFileService> fs;
 
+
     // Create the TTree
     tree = fs->make<TTree>("tree"       , "tree");
 
@@ -458,6 +466,9 @@ void ScoutingTreeMakerTest::beginRun(edm::Run const& iRun, edm::EventSetup const
     triggerPathsVector.push_back("DST_HT250_CaloScouting_v*");
     triggerPathsVector.push_back("DST_HT410_PFScouting_v*");
     triggerPathsVector.push_back("DST_HT450_PFScouting_v*");
+
+    l1GtUtils_ ->retrieveL1Setup(iSetup);
+    cout << " L1T menu name   : " << l1GtUtils_->gtTriggerMenuName() << endl;
 
     HLTConfigProvider hltConfig;
     bool changedConfig = false;
