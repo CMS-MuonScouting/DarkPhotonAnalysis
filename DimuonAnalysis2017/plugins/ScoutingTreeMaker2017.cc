@@ -51,6 +51,7 @@
 #include "DataFormats/PatCandidates/interface/TriggerObjectStandAlone.h"
 #include "DataFormats/PatCandidates/interface/PackedTriggerPrescales.h"
 #include "L1Trigger/L1TGlobal/interface/L1TGlobalUtil.h"
+#include "DataFormats/L1TGlobal/interface/GlobalAlgBlk.h"
 #include "HLTrigger/HLTcore/interface/TriggerExpressionData.h"
 #include "HLTrigger/HLTcore/interface/TriggerExpressionEvaluator.h"
 #include "HLTrigger/HLTcore/interface/TriggerExpressionParser.h"
@@ -95,7 +96,8 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
         // - applyHLTFilter   : Fill the tree only when an event passes the set of "interesting" triggers
         // - require2Muons    : Fill the tree only when there are at least 2 muons in the event
 	
-
+	bool doL1;       
+        triggerExpression::Data triggerCache_;
       
 	bool isMC;
         bool useLHEWeights;
@@ -111,6 +113,11 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
         // For now we are interested in events passing either the single or double lepton triggers
         unsigned char                trig;
        
+	edm::InputTag                algInputTag_;       
+        edm::EDGetToken              algToken_;
+        l1t::L1TGlobalUtil           *l1GtUtils_;
+        std::vector<std::string>     l1Seeds_;
+        std::vector<bool>            l1Result_;
        
 	// Pileup information
         unsigned                     putrue, nvtx;
@@ -159,7 +166,7 @@ ScoutingTreeMaker2017::ScoutingTreeMaker2017(const edm::ParameterSet& iConfig):
     gensToken                (consumes<std::vector<reco::GenParticle> >        (iConfig.getParameter<edm::InputTag>("gens"))),
     genEvtInfoToken          (consumes<GenEventInfoProduct>                    (iConfig.getParameter<edm::InputTag>("geneventinfo"))),
     
-    
+    doL1                     (iConfig.existsAs<bool>("doL1")               ?    iConfig.getParameter<bool>("doL1")             : false),
     isMC                     (iConfig.existsAs<bool>("isMC")               ?    iConfig.getParameter<bool>  ("isMC")            : false),
     useLHEWeights            (iConfig.existsAs<bool>("useLHEWeights")      ?    iConfig.getParameter<bool>  ("useLHEWeights")   : false),
     storeReducedInfo         (iConfig.existsAs<bool>("storeReducedInfo")   ?    iConfig.getParameter<bool>  ("storeReducedInfo"): false),
@@ -168,7 +175,16 @@ ScoutingTreeMaker2017::ScoutingTreeMaker2017(const edm::ParameterSet& iConfig):
     xsec                     (iConfig.existsAs<double>("xsec")             ?    iConfig.getParameter<double>("xsec") * 1000.0   : 1.)
 {
 	usesResource("TFileService");
-	
+	if (doL1) {
+        	algInputTag_ = iConfig.getParameter<edm::InputTag>("AlgInputTag");
+        	algToken_ = consumes<BXVector<GlobalAlgBlk>>(algInputTag_);
+    		l1Seeds_ = iConfig.getParameter<std::vector<std::string> >("l1Seeds");
+       	        l1GtUtils_ = new l1t::L1TGlobalUtil(iConfig,consumesCollector());	
+    	}
+    	else {
+        	l1Seeds_ = std::vector<std::string>();
+        	l1GtUtils_ = 0;
+		}
 }
 
 
@@ -225,6 +241,10 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         if (i == 7  && triggerResultsH->accept(triggerPathsMap[triggerPathsVector[i]])) trig += 128; // DST_HT450_PFScouting
 	}
 
+
+	
+
+
     bool triggered = false;
     if (trig  > 0) triggered = true;
     if (applyHLTFilter && !triggered) return;
@@ -268,7 +288,8 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     nMuonHits.clear();       
     nPixelHits.clear();       
     nTkLayers.clear();       
-    nStations.clear();       
+    nStations.clear();  
+    l1Result_.clear();     
     
     // Muon information
     for (auto muons_iter = muonsH->begin(); muons_iter != muonsH->end(); ++muons_iter) {
@@ -327,6 +348,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     }
 
     if (require2Muons && muonpt.size() < 2) return;
+    
 
     // GEN information
     if (isMC && gensH.isValid()) {
@@ -346,13 +368,37 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         }
     }
 
-    tree->Fill();
+
+    if (doL1) {
+
+        	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
+
+		for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
+
+  	    		bool l1htbit = 0;
+	    		
+	    		l1GtUtils_->getFinalDecisionByName(string(l1Seeds_[iseed]), l1htbit);
+            		l1Result_.push_back( l1htbit );
+
+    		}
+    }
+
+    
+	tree->Fill();
+ 
+	
+	
 }
 
 
 void ScoutingTreeMaker2017::beginJob() {
     // Access the TFileService
     edm::Service<TFileService> fs;
+
+
+    //book Histos
+    //diMuNamesHisto_ = fs_->make<TH1F>("diMuMass", "diMuMass", 500, 0, 100);
+
 
     // Create the TTree
     tree = fs->make<TTree>("tree"       , "tree");
@@ -369,7 +415,7 @@ void ScoutingTreeMaker2017::beginJob() {
 
     // Triggers
     tree->Branch("trig"                 , &trig                          , "trig/b");
-
+    tree->Branch("l1Result"		, "std::vector<bool>"             ,&l1Result_	, 32000, 0);		
     // Pileup info
     tree->Branch("nvtx"                 , &nvtx                          , "nvtx/i"       );
     tree->Branch("rho"                  , &rho                           , "rho/D"        );
@@ -381,6 +427,7 @@ void ScoutingTreeMaker2017::beginJob() {
     tree->Branch("muoneta"              , "std::vector<float>"           , &muoneta   , 32000, 0);
     tree->Branch("muonphi"              , "std::vector<float>"           , &muonphi   , 32000, 0);
     tree->Branch("muoncharge"           , "std::vector<float>"           , &muoncharge, 32000, 0);
+    
     if (!storeReducedInfo) {
     tree->Branch("nMuonHits"            , "std::vector<unsigned char>"   , &nMuonHits , 32000, 0);
     tree->Branch("nPixelHits"           , "std::vector<unsigned char>"   , &nPixelHits, 32000, 0);

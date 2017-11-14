@@ -85,7 +85,7 @@ process.options = cms.untracked.PSet(
 )
 
 # How many events to process
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100000) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )
 
 # Input EDM files
 process.source = cms.Source("PoolSource",
@@ -156,6 +156,21 @@ process.mmtree = cms.EDAnalyzer('ScoutingTreeMaker2017',
 	require2Muons    = cms.bool(params.filterMuons),
 	storeReducedInfo = cms.bool(params.reducedInfo),
     	triggerresults   = cms.InputTag("TriggerResults", "", params.trigProcess),
+	doL1 = cms.bool(True),
+        triggerConfiguration = cms.PSet(
+    		hltResults            = cms.InputTag('TriggerResults','','HLT'),
+    		l1tResults            = cms.InputTag(''),
+    		daqPartitions         = cms.uint32(1),
+    		l1tIgnoreMaskAndPrescale = cms.bool(False),
+    		#l1tIgnoreMask         = cms.bool(False),
+   		#l1techIgnorePrescales = cms.bool(False),
+    		throw                 = cms.bool(False)
+  	),
+	ReadPrescalesFromFile = cms.bool( False ),
+        AlgInputTag = cms.InputTag("gtStage2Digis"),
+        l1tAlgBlkInputTag = cms.InputTag("gtStage2Digis"),
+        l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
+        l1Seeds           = cms.vstring(getL1Conf()),
 	vertices          = cms.InputTag("hltScoutingMuonPackerCalo","displacedVtx"),
 	muons             = cms.InputTag("hltScoutingMuonPackerCalo"),
 	#pfcands          = cms.InputTag("hltScoutingPFPacker"),
@@ -169,5 +184,5 @@ process.mmtree = cms.EDAnalyzer('ScoutingTreeMaker2017',
 if params.isMC : 
     process.p = cms.Path(process.gentree + process.mmtree)
 else : 
-    process.p = cms.Path(                  process.mmtree)
+    process.p = cms.Path(  process.gtStage2Digis + process.mmtree)
 
