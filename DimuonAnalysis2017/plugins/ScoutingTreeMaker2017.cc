@@ -140,7 +140,8 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
         std::vector<float>           eciso;
         std::vector<float>           hciso;
         std::vector<float>           iso;
-        std::vector<char>            muonid;       
+        std::vector<char>            muonid;
+        std::vector<char>            muonLooseid;
         std::vector<unsigned char>   nMuonHits;       
         std::vector<unsigned char>   nPixelHits;       
         std::vector<unsigned char>   nTkLayers;       
@@ -152,6 +153,10 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
 
         // TTree carrying the event weight information
         TTree* tree;
+
+  //Run and lumisection
+  	int run;
+  	int lumSec;
 
 };
 
@@ -228,6 +233,11 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     // Trigger info
     trig = 0;
 
+    run = iEvent.eventAuxiliary().run();
+    lumSec = iEvent.eventAuxiliary().luminosityBlock();
+
+
+
     // Which triggers fired
     for (size_t i = 0; i < triggerPathsVector.size(); i++) {
         if (triggerPathsMap[triggerPathsVector[i]] == -1) continue;
@@ -242,8 +252,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
 	}
 
 
-	
-
+    
 
     bool triggered = false;
     if (trig  > 0) triggered = true;
@@ -289,7 +298,10 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     nPixelHits.clear();       
     nTkLayers.clear();       
     nStations.clear();  
-    l1Result_.clear();     
+    l1Result_.clear(); 
+    muonLooseid.clear();
+    //run.clear();
+    //LS.clear();    
     
     // Muon information
     for (auto muons_iter = muonsH->begin(); muons_iter != muonsH->end(); ++muons_iter) {
@@ -345,7 +357,27 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         muonidval *= char(muons_iter->charge());
         muonid.push_back(muonidval);
 
+	char muonLooseidval = 1;
+        if ( nPixelHits.back() > 0 && chi2.back() < 10. && nTkLayers.back() > 5) muonLooseidval += 2;
+        muonLooseidval *= char(muons_iter->charge());
+        muonLooseid.push_back(muonLooseidval);
+
     }
+
+    if (doL1) {
+
+        	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
+
+		for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
+
+  	    		bool l1htbit = 0;
+	    		
+	    		l1GtUtils_->getFinalDecisionByName(string(l1Seeds_[iseed]), l1htbit);
+            		l1Result_.push_back( l1htbit );
+
+    		}
+    }
+
 
     if (require2Muons && muonpt.size() < 2) return;
     
@@ -369,19 +401,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     }
 
 
-    if (doL1) {
-
-        	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
-
-		for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
-
-  	    		bool l1htbit = 0;
-	    		
-	    		l1GtUtils_->getFinalDecisionByName(string(l1Seeds_[iseed]), l1htbit);
-            		l1Result_.push_back( l1htbit );
-
-    		}
-    }
+    
 
     
 	tree->Fill();
@@ -412,7 +432,8 @@ void ScoutingTreeMaker2017::beginJob() {
     tree->Branch("gens"                 , "std::vector<TLorentzVector>"  , &gens     , 32000, 0);
     tree->Branch("gid"                  , "std::vector<char>"            , &gid      );
     }
-
+    tree->Branch("lumSec", &lumSec, "lumSec/i" );
+    tree->Branch("run", &run, "run/i");
     // Triggers
     tree->Branch("trig"                 , &trig                          , "trig/b");
     tree->Branch("l1Result"		, "std::vector<bool>"             ,&l1Result_	, 32000, 0);		
@@ -448,6 +469,7 @@ void ScoutingTreeMaker2017::beginJob() {
     else 
     tree->Branch("iso"                  , "std::vector<float>"           , &iso       , 32000, 0);
     tree->Branch("muonid"               , "std::vector<char>"            , &muonid    , 32000, 0);
+    tree->Branch("muonLooseid"               , "std::vector<char>"            , &muonLooseid    , 32000, 0);
 }
 
 void ScoutingTreeMaker2017::endJob() {
@@ -456,7 +478,7 @@ void ScoutingTreeMaker2017::endJob() {
 void ScoutingTreeMaker2017::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup) {
     // HLT paths
     triggerPathsVector.push_back("DST_L1DoubleMu_CaloScouting_PFScouting_v");
-    triggerPathsVector.push_back("DST_DoubleMu3_Mass10_CaloScouting_PFScouting_v");
+    triggerPathsVector.push_back("DST_DoubleMu3_noVtx_CaloScouting_v*");
     triggerPathsVector.push_back("DST_ZeroBias_CaloScouting_PFScouting_v");
     triggerPathsVector.push_back("DST_L1HTT_CaloScouting_PFScouting_v*");
     triggerPathsVector.push_back("DST_CaloJet40_CaloScouting_PFScouting_v*");
