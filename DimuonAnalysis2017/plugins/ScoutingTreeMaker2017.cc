@@ -309,7 +309,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         muoneta.push_back(muons_iter->eta());
         muonphi.push_back(muons_iter->phi());
 	muoncharge.push_back(muons_iter->charge());
-	cout<<muons_iter->charge()<<endl;
+	
         nMuonHits .push_back(muons_iter->nValidMuonHits());       
         nPixelHits.push_back(muons_iter->nValidPixelHits());       
         nTkLayers .push_back(muons_iter->nTrackerLayersWithMeasurement());       
