@@ -85,11 +85,12 @@ process.options = cms.untracked.PSet(
 )
 
 # How many events to process
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(10000) )
 
 # Input EDM files
 process.source = cms.Source("PoolSource",
 	fileNames = cms.untracked.vstring([
+#		'file:/afs/cern.ch/user/b/bortigno/public/darkphoton/DP_MZd35Epsilon2e-2_fall17_AODSIM_step3.root',
         	'/store/data/Run2017C/ScoutingCaloMuon/RAW/v1/000/301/397/00000/AEFA61EC-D783-E711-AB3E-02163E013445.root',
 		'/store/data/Run2017C/ScoutingCaloMuon/RAW/v1/000/301/397/00000/B4716947-DF83-E711-9B9A-02163E014281.root',
 		'/store/data/Run2017C/ScoutingCaloMuon/RAW/v1/000/301/397/00000/BE7B27E8-DA83-E711-94E1-02163E01A1C4.root',
@@ -172,6 +173,7 @@ process.mmtree = cms.EDAnalyzer('ScoutingTreeMaker2017',
         l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
         l1Seeds           = cms.vstring(getL1Conf()),
 	vertices          = cms.InputTag("hltScoutingMuonPackerCalo","displacedVtx"),
+#	beamspot          = cms.InputTag("")
 	muons             = cms.InputTag("hltScoutingMuonPackerCalo"),
 	#pfcands          = cms.InputTag("hltScoutingPFPacker"),
 	rho               = cms.InputTag("hltScoutingCaloPacker", "rho"),

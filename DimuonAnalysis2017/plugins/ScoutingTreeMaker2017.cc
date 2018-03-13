@@ -124,6 +124,9 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
         double                       rho;
 
         // Collection of muon 4-vectors, muon ID abd isolation variables
+	std::vector<float>           vtxX;
+	std::vector<float>           vtxY;
+	std::vector<float>           vtxZ;
         std::vector<float>           muonpt;
         std::vector<float>           muoneta;
         std::vector<float>           muonphi;
@@ -236,6 +239,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     run = iEvent.eventAuxiliary().run();
     lumSec = iEvent.eventAuxiliary().luminosityBlock();
 
+    //if(run < 305405) return;
 
 
     // Which triggers fired
@@ -260,13 +264,9 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
 
     // Pileup information
     rho = *rhoH;
-    nvtx = 0;
-    for (auto vtx_iter = verticesH->begin(); vtx_iter != verticesH->end(); ++vtx_iter) {
-        //if (vtx_iter->isValidVtx()) nvtx++;        
-        nvtx++;        
-    }
-    if (nvtx == 0) return;
-
+    
+    //if (nvtx == 0) return;
+    
     putrue = 0;
     if (isMC && pileupInfoH.isValid()) {
         for (auto pileupInfo_iter = pileupInfoH->begin(); pileupInfo_iter != pileupInfoH->end(); ++pileupInfo_iter) {
@@ -277,6 +277,9 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     // Clear all the vectors for every event
     gens.clear(); 
     gid.clear();
+    vtxX.clear();
+    vtxY.clear();
+    vtxZ.clear();
     muonpt.clear();
     muoneta.clear();
     muonphi.clear();
@@ -303,13 +306,21 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     //run.clear();
     //LS.clear();    
     
+    //Vertex Info
+    nvtx = 0;
+    for (auto vtx_iter = verticesH->begin(); vtx_iter != verticesH->end(); ++vtx_iter) {
+        nvtx++;
+	vtxX.push_back(vtx_iter->x());        
+	vtxY.push_back(vtx_iter->y());        
+	vtxZ.push_back(vtx_iter->z());        
+    }
+
     // Muon information
     for (auto muons_iter = muonsH->begin(); muons_iter != muonsH->end(); ++muons_iter) {
         muonpt .push_back(muons_iter->pt() );
         muoneta.push_back(muons_iter->eta());
         muonphi.push_back(muons_iter->phi());
 	muoncharge.push_back(muons_iter->charge());
-	
         nMuonHits .push_back(muons_iter->nValidMuonHits());       
         nPixelHits.push_back(muons_iter->nValidPixelHits());       
         nTkLayers .push_back(muons_iter->nTrackerLayersWithMeasurement());       
@@ -365,23 +376,17 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     }
 
     if (doL1) {
-
         	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
-
 		for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
-
-  	    		bool l1htbit = 0;
-	    		
+  	    		bool l1htbit = 0;	    		
 	    		l1GtUtils_->getFinalDecisionByName(string(l1Seeds_[iseed]), l1htbit);
             		l1Result_.push_back( l1htbit );
-
     		}
     }
 
 
     if (require2Muons && muonpt.size() < 2) return;
     
-
     // GEN information
     if (isMC && gensH.isValid()) {
         for (auto gens_iter = gensH->begin(); gens_iter != gensH->end(); ++gens_iter) {
@@ -399,9 +404,6 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
             }
         }
     }
-
-
-    
 
     
 	tree->Fill();
@@ -434,16 +436,21 @@ void ScoutingTreeMaker2017::beginJob() {
     }
     tree->Branch("lumSec", &lumSec, "lumSec/i" );
     tree->Branch("run", &run, "run/i");
+    tree->Branch("nvtx", &nvtx, "nvtx/i");
+    
     // Triggers
     tree->Branch("trig"                 , &trig                          , "trig/b");
     tree->Branch("l1Result"		, "std::vector<bool>"             ,&l1Result_	, 32000, 0);		
     // Pileup info
     tree->Branch("nvtx"                 , &nvtx                          , "nvtx/i"       );
     tree->Branch("rho"                  , &rho                           , "rho/D"        );
-    if (isMC)
-    tree->Branch("putrue"               , &putrue                        , "putrue/i");
+    //if (isMC)
+      //tree->Branch("putrue"               , &putrue                        , "putrue/i");
 
     // Muon info
+    tree->Branch("vtxX"                 , "std::vector<float>"           , &vtxX      , 32000, 0);
+    tree->Branch("vtxY"                 , "std::vector<float>"           , &vtxY      , 32000, 0);
+    tree->Branch("vtxZ"                 , "std::vector<float>"           , &vtxZ      , 32000, 0);
     tree->Branch("muonpt"               , "std::vector<float>"           , &muonpt    , 32000, 0);
     tree->Branch("muoneta"              , "std::vector<float>"           , &muoneta   , 32000, 0);
     tree->Branch("muonphi"              , "std::vector<float>"           , &muonphi   , 32000, 0);
