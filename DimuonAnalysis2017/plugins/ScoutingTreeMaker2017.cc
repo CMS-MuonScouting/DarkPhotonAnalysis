@@ -79,7 +79,7 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
         const edm::EDGetTokenT<edm::TriggerResults>             triggerResultsToken;
         const edm::EDGetTokenT<std::vector<ScoutingVertex> >    verticesToken;
         const edm::EDGetTokenT<std::vector<ScoutingMuon> >      muonsToken;
-  //        const edm::EDGetTokenT<std::vector<ScoutingParticle> >  pfcandsToken;
+  //    const edm::EDGetTokenT<std::vector<ScoutingParticle> >  pfcandsToken;
         const edm::EDGetTokenT<double>                          rhoToken;
 
         const edm::EDGetTokenT<std::vector<PileupSummaryInfo> > pileupInfoToken;
@@ -115,7 +115,7 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
        
 	edm::InputTag                algInputTag_;       
         edm::EDGetToken              algToken_;
-        l1t::L1TGlobalUtil           *l1GtUtils_;
+        l1t::L1TGlobalUtil          *l1GtUtils_;
         std::vector<std::string>     l1Seeds_;
         std::vector<bool>            l1Result_;
        
@@ -127,6 +127,7 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
 	std::vector<float>           vtxX;
 	std::vector<float>           vtxY;
 	std::vector<float>           vtxZ;
+	std::vector<float>           vtxchi2;
         std::vector<float>           muonpt;
         std::vector<float>           muoneta;
         std::vector<float>           muonphi;
@@ -152,12 +153,16 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
 
         // 4-vector of genparticles, and their PDG IDs            
         std::vector<TLorentzVector>  gens;
-        std::vector<char>            gid;
+        std::vector<int>             gid;
+ 	std::vector<int> 	     pdgid;
+    	std::vector<int> 	     motherid;
+  	std::vector<int> 	     grmotherid;
+
 
         // TTree carrying the event weight information
         TTree* tree;
 
-  //Run and lumisection
+  	//Run and lumisection
   	int run;
   	int lumSec;
 
@@ -171,8 +176,8 @@ ScoutingTreeMaker2017::ScoutingTreeMaker2017(const edm::ParameterSet& iConfig):
     //pfcandsToken             (consumes<std::vector<ScoutingParticle> >         (iConfig.getParameter<edm::InputTag>("pfcands"))), 
     rhoToken                 (consumes<double>                                 (iConfig.getParameter<edm::InputTag>("rho"))), 
     pileupInfoToken          (consumes<std::vector<PileupSummaryInfo> >        (iConfig.getParameter<edm::InputTag>("pileupinfo"))),
-    gensToken                (consumes<std::vector<reco::GenParticle> >        (iConfig.getParameter<edm::InputTag>("gens"))),
-    genEvtInfoToken          (consumes<GenEventInfoProduct>                    (iConfig.getParameter<edm::InputTag>("geneventinfo"))),
+    gensToken               (consumes<std::vector<reco::GenParticle> >        (iConfig.getParameter<edm::InputTag>("gens"))),
+    genEvtInfoToken         (consumes<GenEventInfoProduct>                    (iConfig.getParameter<edm::InputTag>("geneventinfo"))),
     
     doL1                     (iConfig.existsAs<bool>("doL1")               ?    iConfig.getParameter<bool>("doL1")             : false),
     isMC                     (iConfig.existsAs<bool>("isMC")               ?    iConfig.getParameter<bool>  ("isMC")            : false),
@@ -192,7 +197,15 @@ ScoutingTreeMaker2017::ScoutingTreeMaker2017(const edm::ParameterSet& iConfig):
     	else {
         	l1Seeds_ = std::vector<std::string>();
         	l1GtUtils_ = 0;
-		}
+	     }
+	/*if(isMC){
+	  gensToken               (consumes<std::vector<reco::GenParticle> >        (iConfig.getParameter<edm::InputTag>("gens")));
+	  genEvtInfoToken         (consumes<GenEventInfoProduct>                    (iConfig.getParameter<edm::InputTag>("geneventinfo")));
+	  }*/
+	/*else{
+		gensToken                <std::vector<reco::GenParticle> >,
+    		genEvtInfoToken          (consumes<GenEventInfoProduct>                    (iConfig.getParameter<edm::InputTag>("geneventinfo"))),
+		}*/
 }
 
 
@@ -280,6 +293,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     vtxX.clear();
     vtxY.clear();
     vtxZ.clear();
+    vtxchi2.clear();
     muonpt.clear();
     muoneta.clear();
     muonphi.clear();
@@ -303,6 +317,9 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     nStations.clear();  
     l1Result_.clear(); 
     muonLooseid.clear();
+    pdgid.clear();
+    motherid.clear();
+    grmotherid.clear();
     //run.clear();
     //LS.clear();    
     
@@ -312,10 +329,12 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         nvtx++;
 	vtxX.push_back(vtx_iter->x());        
 	vtxY.push_back(vtx_iter->y());        
-	vtxZ.push_back(vtx_iter->z());        
+	vtxZ.push_back(vtx_iter->z()); 
+	vtxchi2.push_back(vtx_iter->chi2());       
     }
 
     // Muon information
+    vector<TLorentzVector> muon4s;
     for (auto muons_iter = muonsH->begin(); muons_iter != muonsH->end(); ++muons_iter) {
         muonpt .push_back(muons_iter->pt() );
         muoneta.push_back(muons_iter->eta());
@@ -337,26 +356,12 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         double tkisoval = muons_iter->trackIso();
         double ecisoval = muons_iter->ecalIso();
         double hcisoval = muons_iter->hcalIso();
-	
-        /*for (auto pfcands_iter = pfcandsH->begin(); pfcands_iter != pfcandsH->end(); ++pfcands_iter) {
-            double dR = deltaR(muons_iter->eta(), muons_iter->phi(), pfcands_iter->eta(), pfcands_iter->phi());
-            if (abs(pfcands_iter->pdgId()) == 11) continue;
-            if (abs(pfcands_iter->pdgId()) == 13) continue;
-            if (dR > 0.4) continue;
-            if (dR < 0.01) continue;
-
-            if (abs(pfcands_iter->pdgId()) == 211) cpisoval += pfcands_iter->pt();
-            if (abs(pfcands_iter->pdgId()) == 211 && pfcands_iter->vertex() == 0) chisoval += pfcands_iter->pt();
-            if (abs(pfcands_iter->pdgId()) == 211 && pfcands_iter->vertex()  > 0) puisoval += pfcands_iter->pt();
-            if (pfcands_iter->pdgId() == 130) nhisoval += pfcands_iter->pt();
-            if (pfcands_iter->pdgId() ==  22) phisoval += pfcands_iter->pt();
-	    }*/
         double isoval = tkisoval + max(0., nhisoval + phisoval - 0.5*puisoval);
 
         cpiso.push_back(cpisoval);
         chiso.push_back(chisoval);
         nhiso.push_back(nhisoval);
-        phiso.push_back(phisoval);
+	phiso.push_back(phisoval);
         puiso.push_back(puisoval);
         tkiso.push_back(tkisoval);
         eciso.push_back(ecisoval);
@@ -372,13 +377,24 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
         if ( nPixelHits.back() > 0 && chi2.back() < 10. && nTkLayers.back() > 5) muonLooseidval += 2;
         muonLooseidval *= char(muons_iter->charge());
         muonLooseid.push_back(muonLooseidval);
+	
+	TLorentzVector muon4;
+	muon4.SetPtEtaPhiM(muons_iter->pt(), muons_iter->eta(), muons_iter->phi(), 0.106);
+	muon4s.push_back(muon4);
 
     }
 
     if (doL1) {
         	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
+		/*	for( int r = 99; r<280; r++){
+			string name ("empty");
+                	bool algoName_ = false;
+ 	        	algoName_ = l1GtUtils_->getAlgNameFromBit(r,name);
+			cout << "getAlgNameFromBit = " << algoName_  << endl;
+ 	        	cout << "L1 bit number = " << r << " ; L1 bit name = " << name << endl;
+			}*/
 		for( unsigned int iseed = 0; iseed < l1Seeds_.size(); iseed++ ) {
-  	    		bool l1htbit = 0;	    		
+  	    		bool l1htbit = 0;		
 	    		l1GtUtils_->getFinalDecisionByName(string(l1Seeds_[iseed]), l1htbit);
             		l1Result_.push_back( l1htbit );
     		}
@@ -388,27 +404,40 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     if (require2Muons && muonpt.size() < 2) return;
     
     // GEN information
-    if (isMC && gensH.isValid()) {
-        for (auto gens_iter = gensH->begin(); gens_iter != gensH->end(); ++gens_iter) {
-            if (gens_iter->pdgId() ==  23 || abs(gens_iter->pdgId()) == 24 || gens_iter->pdgId() == 25) {
-                TLorentzVector g4;
-                g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
-                gens.push_back(g4);
-                gid.push_back(char(gens_iter->pdgId()));
-            }
-            if (abs(gens_iter->pdgId()) > 10 && abs(gens_iter->pdgId()) < 17 && gens_iter->fromHardProcessFinalState()) {
-                TLorentzVector g4;
-                g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
-                gens.push_back(g4);
-                gid.push_back(char(gens_iter->pdgId()));
-            }
-        }
-    }
+    if ( isMC ) 
+       {
+      for(unsigned int j=0; j<muon4s.size(); j++)
+	{
+        for(auto gens_iter = gensH->begin(); gens_iter != gensH->end(); ++gens_iter) 
+	 {
 
-    
-	tree->Fill();
- 
-	
+	  TLorentzVector g4;
+          g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
+
+	  if(muon4s[j].DeltaR(g4)<0.01 && gens_iter->status()==1){
+	    pdgid.push_back(gens_iter->pdgId());
+
+	    if( gens_iter->numberOfMothers()>0 ) 
+		{
+		  auto m = gens_iter->mother(0);
+		  while ( m->pdgId() ==  gens_iter->pdgId() && m->numberOfMothers()>0 )	{ m = m->mother(0);}
+		  motherid.push_back(m->pdgId());		  
+		
+		 if(m->numberOfMothers()>0 ) 
+			{
+		  		auto grm = m->mother(0);
+		  		while ( grm->pdgId() ==  m->pdgId() && grm->numberOfMothers()>0 ) { grm = grm->mother(0);}
+		  		grmotherid.push_back(grm->pdgId());		  
+			}
+		 else{grmotherid.push_back(-9999);}
+		}
+	    else{ motherid.push_back(-9999);}
+	     break;	
+	  }	  	
+	}
+      }
+	    }
+   tree->Fill();	
 	
 }
 
@@ -432,11 +461,14 @@ void ScoutingTreeMaker2017::beginJob() {
 
     // Gen info
     tree->Branch("gens"                 , "std::vector<TLorentzVector>"  , &gens     , 32000, 0);
-    tree->Branch("gid"                  , "std::vector<char>"            , &gid      );
+    tree->Branch("gid"                  , "std::vector<int>"             , &gid      , 32000, 0);
+    tree->Branch("pdgid"                , "std::vector<int>"  		 , &pdgid    , 32000, 0);
+    tree->Branch("motherid"             , "std::vector<int>"             , &motherid , 32000, 0);
+    tree->Branch("grmotherid"           , "std::vector<int>"             , &grmotherid , 32000, 0);
     }
-    tree->Branch("lumSec", &lumSec, "lumSec/i" );
-    tree->Branch("run", &run, "run/i");
-    tree->Branch("nvtx", &nvtx, "nvtx/i");
+    tree->Branch("lumSec"		, &lumSec			 , "lumSec/i" );
+    tree->Branch("run"			, &run				 , "run/i" );
+    tree->Branch("nvtx"			, &nvtx				 , "nvtx/i" );
     
     // Triggers
     tree->Branch("trig"                 , &trig                          , "trig/b");
@@ -451,6 +483,7 @@ void ScoutingTreeMaker2017::beginJob() {
     tree->Branch("vtxX"                 , "std::vector<float>"           , &vtxX      , 32000, 0);
     tree->Branch("vtxY"                 , "std::vector<float>"           , &vtxY      , 32000, 0);
     tree->Branch("vtxZ"                 , "std::vector<float>"           , &vtxZ      , 32000, 0);
+    tree->Branch("vtxchi2"              , "std::vector<float>"           , &vtxchi2   , 32000, 0);
     tree->Branch("muonpt"               , "std::vector<float>"           , &muonpt    , 32000, 0);
     tree->Branch("muoneta"              , "std::vector<float>"           , &muoneta   , 32000, 0);
     tree->Branch("muonphi"              , "std::vector<float>"           , &muonphi   , 32000, 0);
@@ -476,7 +509,7 @@ void ScoutingTreeMaker2017::beginJob() {
     else 
     tree->Branch("iso"                  , "std::vector<float>"           , &iso       , 32000, 0);
     tree->Branch("muonid"               , "std::vector<char>"            , &muonid    , 32000, 0);
-    tree->Branch("muonLooseid"               , "std::vector<char>"            , &muonLooseid    , 32000, 0);
+    tree->Branch("muonLooseid"          , "std::vector<char>"            , &muonLooseid    , 32000, 0);
 }
 
 void ScoutingTreeMaker2017::endJob() {
