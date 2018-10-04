@@ -76,7 +76,7 @@ void makeCardsAndWS(){
 	double eff = 0.7;// to be updated
 	
 	//scale
-	double eps2scale = 0.0001; // this scales the cross section eps=0.02->0.002 or eps2=10^(-6)
+	double eps2scale = 0.0001; // this scales the cross section eps=0.02->0.002 or eps2=10^(-8)
 
 	//*****----->>>>> nSignal = xsecgraph->Eval(mass)*eff*luminosity*acceptances[i]
 
@@ -85,7 +85,7 @@ void makeCardsAndWS(){
 	for(int i=0; i<300; i++){
 
 
-	  if(i<90. || i>112.) continue;
+	  //if(i<90. || i>112.) continue;
 	  	//get the histograms
 	  	TH1D* catA=(TH1D*)file->Get(Form("massforLimit_CatA%d",i));
 	  	TH1D* catB=(TH1D*)file->Get(Form("massforLimit_CatB%d",i));
@@ -168,7 +168,13 @@ void makeCardsAndWS(){
       		newcardShape << Form("bin     		CatA		CatA		CatB 		CatB		CatC		CatC	\n");
       		newcardShape << Form("process 		signalModel  	bkg_mass	signalModel  	bkg_mass	signalModel  	bkg_mass\n");
       		newcardShape << Form("process 		0    		1		0		1		0		1   	\n");
-      		newcardShape << Form("rate    		%f  		1.0		%f  		1.0		%f  		1	\n",eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[0],eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[1],eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[2]);
+      		newcardShape << Form("rate    		%f  		%f		%f  		%f		%f  		%f	\n",
+		eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[0],
+		catA->Integral(),
+		eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[1],
+		catB->Integral(),
+		eps2scale*xsecgraph->Eval(mass)*eff*luminosity*acceptances[2],
+		catC->Integral());
 		newcardShape.close();
 		
 	}
