@@ -153,6 +153,8 @@ class ScoutingTreeMaker2017 : public edm::one::EDAnalyzer<edm::one::SharedResour
 
         // 4-vector of genparticles, and their PDG IDs            
         std::vector<TLorentzVector>  gens;
+	std::vector<TLorentzVector>  gP4;
+	std::vector<TLorentzVector>  mP4;
         std::vector<int>             gid;
  	std::vector<int> 	     pdgid;
     	std::vector<int> 	     motherid;
@@ -221,8 +223,8 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     edm::Handle<edm::TriggerResults> triggerResultsH;
     iEvent.getByToken(triggerResultsToken, triggerResultsH);
    
-    Handle<vector<ScoutingVertex> > verticesH;
-    iEvent.getByToken(verticesToken, verticesH);
+        Handle<vector<ScoutingVertex> > verticesH;
+        iEvent.getByToken(verticesToken, verticesH);
     
     Handle<vector<ScoutingMuon> > muonsH;
     iEvent.getByToken(muonsToken, muonsH);
@@ -290,6 +292,8 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
     // Clear all the vectors for every event
     gens.clear(); 
     gid.clear();
+    gP4.clear();
+    mP4.clear();
     vtxX.clear();
     vtxY.clear();
     vtxZ.clear();
@@ -386,7 +390,7 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
 
     if (doL1) {
         	l1GtUtils_->retrieveL1(iEvent,iSetup,algToken_);
-		/*	for( int r = 99; r<280; r++){
+		/*	for( int r = 280; r<500; r++){
 			string name ("empty");
                 	bool algoName_ = false;
  	        	algoName_ = l1GtUtils_->getAlgNameFromBit(r,name);
@@ -414,15 +418,17 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
 	  TLorentzVector g4;
           g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
 
-	  if(muon4s[j].DeltaR(g4)<0.01 && gens_iter->status()==1){
+	  if(muon4s[j].DeltaR(g4)<0.01 && gens_iter->status()==1 && (TMath::Abs(muon4s[j].Pt()-g4.Pt())/muon4s[j].Pt())<0.1){
 	    pdgid.push_back(gens_iter->pdgId());
-
+	    gP4.push_back(g4);
 	    if( gens_iter->numberOfMothers()>0 ) 
 		{
 		  auto m = gens_iter->mother(0);
 		  while ( m->pdgId() ==  gens_iter->pdgId() && m->numberOfMothers()>0 )	{ m = m->mother(0);}
 		  motherid.push_back(m->pdgId());		  
-		
+		  TLorentzVector m4;
+          	  m4.SetPtEtaPhiM(m->pt(), m->eta(), m->phi(), m->mass());
+		  mP4.push_back(m4);
 		 if(m->numberOfMothers()>0 ) 
 			{
 		  		auto grm = m->mother(0);
@@ -436,7 +442,30 @@ void ScoutingTreeMaker2017::analyze(const edm::Event& iEvent, const edm::EventSe
 	  }	  	
 	}
       }
-	    }
+    }
+
+
+    if (isMC /*&& gensH.isValid()*/) {
+        	for (auto gens_iter = gensH->begin(); gens_iter != gensH->end(); ++gens_iter) {
+            	if (gens_iter->pdgId() ==  23 || abs(gens_iter->pdgId()) == 24 || gens_iter->pdgId() == 25) {
+                	TLorentzVector g4;
+                	g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
+                	gens.push_back(g4);
+                	gid.push_back(char(gens_iter->pdgId()));
+            	}
+            	if (abs(gens_iter->pdgId()) > 10 && abs(gens_iter->pdgId()) < 17 /*&& gens_iter->fromHardProcessFinalState()*/) {
+                	TLorentzVector g4;
+                	g4.SetPtEtaPhiM(gens_iter->pt(), gens_iter->eta(), gens_iter->phi(), gens_iter->mass());
+                	gens.push_back(g4);
+                	gid.push_back(char(gens_iter->pdgId()));
+            	}
+        	}
+    	}
+
+
+
+
+
    tree->Fill();	
 	
 }
@@ -461,6 +490,8 @@ void ScoutingTreeMaker2017::beginJob() {
 
     // Gen info
     tree->Branch("gens"                 , "std::vector<TLorentzVector>"  , &gens     , 32000, 0);
+    tree->Branch("gP4"                 	, "std::vector<TLorentzVector>"  , &gP4     , 32000, 0);
+    tree->Branch("mP4"                 	, "std::vector<TLorentzVector>"  , &mP4     , 32000, 0);
     tree->Branch("gid"                  , "std::vector<int>"             , &gid      , 32000, 0);
     tree->Branch("pdgid"                , "std::vector<int>"  		 , &pdgid    , 32000, 0);
     tree->Branch("motherid"             , "std::vector<int>"             , &motherid , 32000, 0);
