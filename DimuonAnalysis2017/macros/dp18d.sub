@@ -1,0 +1,21 @@
+executable = /afs/cern.ch/work/j/jsalfeld/Princeton/DarkStuff/CMSSW_9_4_6/src/DarkPhotonAnalysis/DimuonAnalysis2017/macros/thejob18.sh
+should_transfer_files = yes
+when_to_transfer_output = ON_EXIT
+transfer_input_files = ""
+transfer_output_files = ""
+arguments = "$(INPUT)"
+universe = vanilla
+log = test1.$(Process).log
+output = test1.$(Process).out
+error = test1.$(Process).err
++JobFlavour = "espresso"
+queue INPUT from data18D.list
+
+
+# or
+# queue INPUT in (
+# file1
+# file2
+# file3
+# ..
+# )
